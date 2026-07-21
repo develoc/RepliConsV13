@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile            Profile?
+  memories           Memory[]
+  personalityTraits  PersonalityTraits?
+  behavioralPatterns BehavioralPattern[]
+  auditLogs          AuditLog[]
+  timelineEvents     TimelineEvent[]
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  displayName String?
+  avatarUrl   String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Memory {
+  id                 String   @id @default(uuid())
+  userId             String
+  title              String
+  description        String   @db.Text
+  memoryDate         DateTime
+  emotion            String?
+  emotionalIntensity Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags               MemoryTag[]
+  relationships      MemoryRelationship[]    @relation("source")
+  relatedMemories    MemoryRelationship[]    @relation("target")
+  embedding          Embedding?
+  timelineEvent      TimelineEvent?
+
+  @@index([userId])
+  @@index([memoryDate])
+  @@map("memories")
+}
+
+model MemoryTag {
+  id        String   @id @default(uuid())
+  memoryId  String
+  tagName   String
+  createdAt DateTime @default(now())
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId])
+  @@map("memory_tags")
+}
+
+model MemoryRelationship {
+  id               String   @id @default(uuid())
+  sourceMemoryId   String
+  targetMemoryId   String
+  relationshipType String
+  createdAt        DateTime @default(now())
+
+  sourceMemory Memory @relation("source", fields: [sourceMemoryId], references: [id], onDelete: Cascade)
+  targetMemory Memory @relation("target", fields: [targetMemoryId], references: [id], onDelete: Cascade)
+
+  @@index([sourceMemoryId])
+  @@index([targetMemoryId])
+  @@map("memory_relationships")
+}
+
+model TimelineEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  memoryId  String   @unique
+  eventDate DateTime
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventDate])
+  @@map("timeline_events")
+}
+
+model PersonalityTraits {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  openness          Float    @default(0)
+  conscientiousness Float    @default(0)
+  extroversion      Float    @default(0)
+  agreeableness     Float    @default(0)
+  neuroticism       Float    @default(0)
+  calculatedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("personality_traits")
+}
+
+model BehavioralPattern {
+  id          String   @id @default(uuid())
+  userId      String
+  patternType String
+  confidence  Float
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("behavioral_patterns")
+}
+
+model Embedding {
+  id        String   @id @default(uuid())
+  memoryId  String   @unique
+  vector    String   @db.Text
+  model     String   @default("text-embedding-3-small")
+  createdAt DateTime @default(now())
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId])
+  @@map("embeddings")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
