@@ -1,0 +1,85 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: replicons-postgres
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-replicons_db}
+      POSTGRES_USER: ${DATABASE_USER:-replicons}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-replicons}
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-replicons}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - replicons-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: replicons-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - replicons-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: replicons-backend
+    environment:
+      DATABASE_URL: postgresql://${DATABASE_USER:-replicons}:${DATABASE_PASSWORD:-replicons}@postgres:5432/${DATABASE_NAME:-replicons_db}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - replicons-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: replicons-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - replicons-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  replicons-network:
+    driver: bridge
